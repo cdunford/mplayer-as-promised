@@ -10,8 +10,10 @@ const mplayerArgs = [
   '-noborder',
 ];
 
-type PromiseResolve<T> = (value?: T | PromiseLike<T>) => void;
-type PromiseReject<T> = (reason?: any) => void;
+type PromiseResolver<T> = {
+  resolve: (value?: T | PromiseLike<T>) => void;
+  reject: (reason?: any) => void;
+}
 
 export class MPlayer {
 
@@ -19,9 +21,9 @@ export class MPlayer {
   private isPlaying: boolean = false;
 
   private ready: Promise<void>;
-  private readyResolve: PromiseResolve<void>;
+  private readyResolver: PromiseResolver<void>;
 
-  private playResolve: PromiseResolve<void>;
+  private openResolver: PromiseResolver<void>;
 
   /**
    * constructor
@@ -30,12 +32,15 @@ export class MPlayer {
    */
   constructor(private logEnabled: boolean = false) {
     this.ready = new Promise<void>((resolve, reject) => {
-      this.readyResolve = resolve;
+      this.readyResolver = {
+        resolve: resolve,
+        reject: reject,
+      };
     });
 
     this.mplayerProc = proc.spawn('mplayer', mplayerArgs);
-    this.mplayerProc.stdout.on('data', (chunk: string) => this.onData(chunk));
-    this.mplayerProc.stderr.on('data', (chunk: string) => this.onError(chunk));
+    this.mplayerProc.stdout.on('data', (chunk: string | Buffer) => this.onData(chunk));
+    this.mplayerProc.stderr.on('data', (chunk: string | Buffer) => this.onError(chunk));
   }
 
   /**
@@ -48,20 +53,35 @@ export class MPlayer {
   public openFile(fileName: string): Promise<void> {
     this.log(`Opening file '${fileName}'`);
 
+    if (this.openResolver) {
+      this.openResolver.reject(`Loading new file '${fileName}' before previous load completed`);
+      this.openResolver = undefined;
+    }
+
     return this.ready.then(() => {
       this.exec(['loadfile', `"${fileName}"`]);
 
       return new Promise<void>((resolve, reject) => {
-        this.playResolve = resolve;
+        this.openResolver = {
+          resolve: resolve,
+          reject: reject,
+        }
       });
     });
   }
 
+  /**
+   * exec
+   * 
+   * Execute a command to mplayer with args
+   * 
+   * @param args an array of args to pass to mplayer, including the command name
+   */
   private exec(args: string[]): void {
-    let cmd = `${args.join(' ')}\n`;
+    let cmd = `${args.join(' ')}`;
     this.log(`Executing: '${cmd}'`);
 
-    this.mplayerProc.stdin.write(cmd);
+    this.mplayerProc.stdin.write(`${cmd}\n`);
   }
 
   /**
@@ -71,16 +91,20 @@ export class MPlayer {
    * 
    * @param chunk data received
    */
-  private onData(chunk: string): void {
-    this.log(`Received data: ${chunk}`);
+  private onData(chunk: string | Buffer): void {
+    chunk = chunk.toString();
 
-    if (chunk.includes('CPLAYER: MPlayer')) {
-      this.readyResolve();
-    } else if (chunk.includes('CPLAYER: Starting playback...')) {
-      if (this.playResolve) {
-        this.playResolve();
-        this.playResolve = undefined;
-        this.isPlaying = true;
+    for (const data of chunk.split('\n')) {
+      this.log(`Received data: ${data}`);
+
+      if (chunk.includes('CPLAYER: MPlayer')) {
+        this.readyResolver.resolve();
+      } else if (chunk.includes('CPLAYER: Starting playback...')) {
+        if (this.openResolver) {
+          this.openResolver.resolve();
+          this.openResolver = undefined;
+          this.isPlaying = true;
+        }
       }
     }
   }
@@ -92,8 +116,20 @@ export class MPlayer {
    * 
    * @param chunk data received
    */
-  private onError(chunk: string): void {
-    this.log(`ERROR: ${chunk}`);
+  private onError(chunk: string | Buffer): void {
+    chunk = chunk.toString();
+
+    for (const err of chunk.split('\n')) {
+      this.log(`ERROR: ${err}`);
+
+      if (err.includes('OPEN: File not found')
+        || err.includes('OPEN: Failed to open')) {
+        if (this.openResolver) {
+          this.openResolver.reject(err.match(/OPEN: (.*)/)[1]);
+          this.openResolver = undefined;
+        }
+      }
+    }
   }
 
   /**
