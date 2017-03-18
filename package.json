@@ -3,14 +3,14 @@
   "version": "0.0.1",
   "description": "Simple mplayer (http://www.mplayerhq.hu/) wrapper for use in node written in Typescript and presenting a promise-heavy API",
   "main": "dist/lib/index.js",
-  "types": "src/lib/index.d.ts",
+  "types": "dist/typings/lib/index.d.ts",
   "scripts": {
     "prebuild": "IF EXIST dist rmdir /S /Q dist",
     "build": "tsc",
     "prestart": "npm run build",
     "start": "node dist/example.js",
     "pretest": "npm run build",
-    "test": "mocha \"build/test/**/*.js\""
+    "test": "mocha \"dist/test/**/*.js\""
   },
   "repository": {
     "type": "git",

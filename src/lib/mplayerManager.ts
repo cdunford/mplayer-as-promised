@@ -145,7 +145,7 @@ export class MPlayerManager {
    * 
    * @param log function to log data
    */
-  constructor(private log: (string) => void) {
+  constructor(private log: (line: string) => void) {
     this.ready = new Promise<void>((resolve, reject) => {
       this.readyResolver = {
         resolve: resolve,

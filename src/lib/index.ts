@@ -1,23 +1,23 @@
 import { MPlayerManager, PromiseResolver } from './mplayerManager'
 
 /**
- * MPlayer
+ * MPlayerImpl
  * 
  * Wrapper that provides a promise based API around
  * MPlayer
  */
-export class MPlayer {
-
-  private mplayer: MPlayerManager;
+export class MPlayerImpl {
 
   /**
    * constructor
    * 
    * @param logEnabled whether the object should log to the console
+   * @param mplayer MPlayerManager used to communicate to mplayer
    */
-  constructor(private logEnabled: boolean = false) {
-    this.mplayer = new MPlayerManager((line) => this.log(line));
-  }
+  protected constructor(
+    private logEnabled: boolean,
+    private mplayer: MPlayerManager
+  ) { }
 
   /**
    * openFile
@@ -56,9 +56,27 @@ export class MPlayer {
    * 
    * @param line the line to log
    */
-  private log(line: string): void {
+  protected log(line: string): void {
     if (this.logEnabled) {
       console.log(`${new Date().toISOString()}: ${line}`);
     }
+  }
+}
+
+/**
+ * MPlayer
+ * 
+ * Wrapper that provides a promise based API around
+ * MPlayer
+ */
+export class MPlayer extends MPlayerImpl {
+
+  /**
+   * constructor
+   * 
+   * @param logEnabled whether logging to console is enabled
+   */
+  public constructor(logEnabled: boolean = false) {
+    super(logEnabled, new MPlayerManager((line) => this.log(line)));
   }
 }
