@@ -7,3 +7,7 @@ mplayer.openFile('FILENAME')
   }, (err) => {
     console.log(`UH OH - ${err}`);
   });
+
+setTimeout(() => {
+  mplayer.shutdown();
+}, 5000);

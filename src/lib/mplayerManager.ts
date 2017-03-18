@@ -50,6 +50,13 @@ interface IMPlayerDataConsumer {
    * @returns true if the error was consumed, false otherwise
    */
   handleError(err: string): boolean;
+
+  /**
+   * terminate
+   * 
+   * Terminate the operation
+   */
+  terminate(): void;
 }
 
 /**
@@ -121,6 +128,16 @@ class MPlayerOperation<T> implements IMPlayerDataConsumer {
     }
 
     return false;
+  }
+
+  /**
+   * terminate
+   * 
+   * Terminate the operation
+   */
+  public terminate(): void {
+    clearTimeout(this.timer);
+    this.resolver.reject('Terminated');
   }
 }
 
@@ -205,6 +222,13 @@ export class MPlayerManager {
     this.log(`Executing: '${cmd}'`);
 
     this.mplayerProc.stdin.write(`${cmd}\n`);
+  }
+
+  public shutdown(): void {
+    if (this.activeOp) {
+      this.activeOp.terminate();
+    }
+    this.mplayerProc.kill();
   }
 
   /**

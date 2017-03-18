@@ -49,6 +49,10 @@ export class MPlayerImpl {
     });
   }
 
+  public shutdown(): void {
+    this.mplayer.shutdown();
+  }
+
   /**
    * log
    * 
