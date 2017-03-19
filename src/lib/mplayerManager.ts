@@ -1,6 +1,6 @@
 import * as proc from 'child_process';
 
-const mplayerArgs = [
+const MPLAYER_ARGS = [
   '-msgmodule',
   '-msglevel',
   'all=6:statusline=4',
@@ -13,135 +13,6 @@ const mplayerArgs = [
 const DEFAULT_OP_TIMEOUT = 2000;
 
 /**
- * PromiseResolver
- * 
- * Type encompassing the resolve and reject
- * functions for a Promise
- */
-export type PromiseResolver<T> = {
-  resolve: (value?: T | PromiseLike<T>) => void;
-  reject: (reason?: any) => void;
-}
-
-/**
- * IMPlayerOperation
- * 
- * Interface for objects that can 
- * consume data (stdout) and errors (stderr)
- * from mplayer
- */
-interface IMPlayerDataConsumer {
-  /**
-   * handleData
-   * 
-   * handle data from mplayer
-   * 
-   * @param data the data to handle
-   * @returns true if the data was consumed, false otherwise
-   */
-  handleData(data: string): boolean;
-
-  /**
-   * handleError
-   * 
-   * handle an error from mplayer
-   * 
-   * @param err the error to handle
-   * @returns true if the error was consumed, false otherwise
-   */
-  handleError(err: string): boolean;
-
-  /**
-   * terminate
-   * 
-   * Terminate the operation
-   */
-  terminate(): void;
-}
-
-/**
- * MPlayerOperation
- * 
- * Object that manages the Promise for a single
- * asynchronous MPlayer operation
- */
-class MPlayerOperation<T> implements IMPlayerDataConsumer {
-
-  public promise: Promise<T>;
-  private resolver: PromiseResolver<T>;
-  private timer: NodeJS.Timer;
-
-  /**
-   * 
-   * @param processData function which processes mplayer data
-   * @param processError function which processes mplayer error
-   * @param processTimeout function which processes operation timeout
-   * @param timeout the timeout in ms for this operation
-   */
-  constructor(
-    private processData: (data: string, resolver: PromiseResolver<T>) => boolean,
-    private processError: (err: string, resolver: PromiseResolver<T>) => boolean,
-    private processTimeout: (resolver: PromiseResolver<T>) => void,
-    timeout: number
-  ) {
-    this.promise = new Promise<T>((resolve, reject) => {
-      this.resolver = {
-        resolve: resolve,
-        reject: reject,
-      }
-    });
-
-    this.timer = setTimeout(() => {
-      this.processTimeout(this.resolver);
-    }, timeout);
-  }
-
-  /**
-   * handleData
-   * 
-   * handle data from mplayer
-   * 
-   * @param data the data to handle
-   * @returns true if the data was consumed, false otherwise
-   */
-  public handleData(data: string) {
-    if (this.processData(data, this.resolver)) {
-      clearTimeout(this.timer);
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * handleError
-   * 
-   * handle an error from mplayer
-   * 
-   * @param err the error to handle
-   * @returns true if the error was consumed, false otherwise
-   */
-  public handleError(err: string) {
-    if (this.processError(err, this.resolver)) {
-      clearTimeout(this.timer);
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * terminate
-   * 
-   * Terminate the operation
-   */
-  public terminate(): void {
-    clearTimeout(this.timer);
-    this.resolver.reject('Terminated');
-  }
-}
-
-/**
  * MPlayerManager
  * 
  * Object which manages the mplayer process
@@ -151,29 +22,15 @@ class MPlayerOperation<T> implements IMPlayerDataConsumer {
 export class MPlayerManager {
 
   private mplayerProc: proc.ChildProcess;
-
-  private ready: Promise<void>;
-  private readyResolver: PromiseResolver<void>;
-
-  private activeOp: IMPlayerDataConsumer;
+  private busy: boolean = false;
+  private ready: boolean = false;
 
   /**
    * constructor
    * 
    * @param log function to log data
    */
-  constructor(private log: (line: string) => void) {
-    this.ready = new Promise<void>((resolve, reject) => {
-      this.readyResolver = {
-        resolve: resolve,
-        reject: reject,
-      };
-    });
-
-    this.mplayerProc = proc.spawn('mplayer', mplayerArgs);
-    this.mplayerProc.stdout.on('data', (chunk: string | Buffer) => this.onData(chunk));
-    this.mplayerProc.stderr.on('data', (chunk: string | Buffer) => this.onError(chunk));
-  }
+  constructor(private log: (line: string) => void) { }
 
   /**
    * doOperation
@@ -182,32 +39,102 @@ export class MPlayerManager {
    * 
    * @param op operation function to execute
    * @param processData function to callback to process mplayer data
-   * @param processError function to callback to process mplayer error
    * @param timeout timeout length in ms for this operation
    * @returns a promise resolved when the operation completes or rejected if it fails or times out
    */
   public doOperation<T>(
-    op: () => void,
-    processData: (data: string, resolver: PromiseResolver<T>) => boolean,
-    processError: (err: string, resolver: PromiseResolver<T>) => boolean,
+    op: (exec: (args: string[]) => void) => void,
+    processData: (data: string, resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void,
     timeout: number = DEFAULT_OP_TIMEOUT
   ): Promise<T> {
-    if (this.activeOp) {
-      return Promise.reject('Pending operation outstanding');
+
+    return new Promise<T>((resolve, reject) => {
+
+      this.readyMPlayer().then(() => {
+        let onData: (chunk: string | Buffer) => void;
+        let onExit: (code: number, signal: string) => void;
+        let onError: (err: Error) => void;
+
+        let cleanup = () => {
+          this.mplayerProc.stdout.removeListener('data', onData);
+          this.mplayerProc.stderr.removeListener('data', onData);
+          this.mplayerProc.removeListener('exit', onExit);
+          this.mplayerProc.removeListener('error', onError);
+        }
+
+        onData = (chunk) => {
+          chunk = chunk.toString();
+
+          let done = false;
+          for (const data of chunk.split('\n')) {
+            this.log(`data received: ${data}`);
+            processData(data, (value?: T | PromiseLike<T>) => {
+              cleanup();
+              resolve(value);
+
+              done = true;
+            }, (reason?: any) => {
+              cleanup();
+              reject(reason);
+
+              done = true;
+            });
+
+            if (done) {
+              break;
+            }
+          }
+        }
+
+        onExit = (code, signal) => {
+          reject(`MPLAYER exited (${code} - ${signal})`);
+        }
+
+        onError = (err) => {
+          reject(err);
+        }
+
+        this.mplayerProc.stdout.on('data', onData);
+        this.mplayerProc.stderr.on('data', onData);
+        this.mplayerProc.on('exit', onExit);
+        this.mplayerProc.on('error', onError);
+
+        op((args) => this.exec(args));
+      }, (reason) => {
+        reject(reason);
+      });
+    });
+  }
+
+  /**
+   * shutdown
+   * 
+   * Shutdown mplayer
+   * 
+   * @returns a promise resolved when the mplayer process is shutdown
+   *          successfully, or rejected when there is an error
+   */
+  public shutdown(): Promise<void> {
+    if (!this.mplayerProc) {
+      return Promise.resolve();
     }
 
-    let operation = new MPlayerOperation<T>(processData, processError, (resolver) => {
-      resolver.reject('Timed out');
-      this.activeOp = undefined;
-    }, timeout);
+    return new Promise<void>((resolve, reject) => {
+      let onExit: (code: number, signal: string) => void;
+      let onError: (err: Error) => void;
 
-    this.activeOp = operation;
+      onExit = (code, signal) => {
+        resolve();
+      }
 
-    this.ready.then(() => {
-      op();
+      onError = (err) => {
+        reject(err);
+      }
+
+      this.mplayerProc.on('exit', onExit);
+      this.mplayerProc.on('error', onError);
+      this.mplayerProc.kill();
     });
-
-    return operation.promise;
   }
 
   /**
@@ -217,61 +144,84 @@ export class MPlayerManager {
    * 
    * @param args an array of args to pass to mplayer, including the command name
    */
-  public exec(args: string[]): void {
+  private exec(args: string[]): void {
     let cmd = `${args.join(' ')}`;
     this.log(`Executing: '${cmd}'`);
 
     this.mplayerProc.stdin.write(`${cmd}\n`);
   }
 
-  public shutdown(): void {
-    if (this.activeOp) {
-      this.activeOp.terminate();
-    }
-    this.mplayerProc.kill();
-  }
-
   /**
-   * onData
+   * readyMPlayer
    * 
-   * Handles stdout data read from mplayer
-   * 
-   * @param chunk data received
+   * @returns a promise that resolves when mplayer is ready, or is
+   *          is rejected if mplayer fails to start
    */
-  private onData(chunk: string | Buffer): void {
-    chunk = chunk.toString();
-
-    for (const data of chunk.split('\n')) {
-      this.log(`Received data: ${data}`);
-
-      if (this.activeOp && this.activeOp.handleData(data)) {
-        this.activeOp = undefined;
-        continue;
+  private readyMPlayer(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      if (this.ready && this.mplayerProc) {
+        resolve();
       }
 
-      if (data.includes('CPLAYER: MPlayer')) {
-        this.readyResolver.resolve();
+      this.shutdown();
+      this.mplayerProc = proc.spawn('mplayer', MPLAYER_ARGS);
+
+      let onProcExit: (code: number, signal: string) => void;
+      let onProcErr: (err: Error) => void;
+      let handleProcCompletion = () => {
+        if (this.mplayerProc) {
+          this.mplayerProc.removeAllListeners();
+          this.mplayerProc.stdout.removeAllListeners();
+          this.mplayerProc.stderr.removeAllListeners();
+          this.mplayerProc = undefined;
+        }
+
+        this.ready = false;
       }
-    }
-  }
-
-  /**
-   * onError
-   * 
-   * Handles stderr data read from mplayer
-   * 
-   * @param chunk data received
-   */
-  private onError(chunk: string | Buffer): void {
-    chunk = chunk.toString();
-
-    for (const err of chunk.split('\n')) {
-      this.log(`ERROR: ${err}`);
-
-      if (this.activeOp && this.activeOp.handleError(err)) {
-        this.activeOp = undefined;
-        continue;
+      onProcExit = (code, signal) => {
+        this.log(`MPLAYER exit: ${code} ${signal}`);
+        handleProcCompletion();
       }
-    }
+
+      onProcErr = (err) => {
+        this.log(`MPLAYER error: ${err}`);
+        handleProcCompletion();
+      }
+      this.mplayerProc.on('exit', onProcExit);
+      this.mplayerProc.on('error', onProcErr);
+
+      let onData: (chunk: string | Buffer) => void;
+      let onExit: (code: number, signal: string) => void;
+      let onError: (err: Error) => void;
+
+      onData = (chunk) => {
+        chunk = chunk.toString();
+        for (const data of chunk.split('\n')) {
+          this.log(`data received: ${data}`);
+          if (data.includes('CPLAYER: MPlayer')) {
+            this.mplayerProc.stdout.removeListener('data', onData);
+            this.mplayerProc.removeListener('exit', onExit);
+            this.mplayerProc.removeListener('error', onError);
+
+            this.log('MPLAYER ready');
+            this.ready = true;
+            resolve();
+            break;
+          }
+        }
+      }
+
+      onExit = (code, signal) => {
+        reject(`MPLAYER exited (${code} - ${signal})`);
+      }
+
+      onError = (err) => {
+        reject(err);
+      }
+
+      this.mplayerProc.stdout.on('data', onData);
+      this.mplayerProc.on('exit', onExit);
+      this.mplayerProc.on('error', onError);
+    });
   }
 }

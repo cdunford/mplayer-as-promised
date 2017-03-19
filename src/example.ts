@@ -9,5 +9,9 @@ mplayer.openFile('FILENAME')
   });
 
 setTimeout(() => {
-  mplayer.shutdown();
-}, 5000);
+  mplayer.shutdown().then(() => {
+    console.log('shutdown complete');
+  }, (reason: any) => {
+    console.log(`shutdown failed: ${reason}`);
+  });
+}, 10000);

@@ -1,4 +1,4 @@
-import { MPlayerManager, PromiseResolver } from './mplayerManager'
+import { MPlayerManager } from './mplayerManager'
 
 /**
  * MPlayerImpl
@@ -25,32 +25,34 @@ export class MPlayerImpl {
    * Open and start playing a file
    * 
    * @param fileName path to the file to open
+   * @returns a promise that resolves when the file is open and  playing,
+   *          or is rejected if the file fails to open
    */
   public openFile(fileName: string): Promise<void> {
     this.log(`Opening file '${fileName}'`);
 
-    return this.mplayer.doOperation<void>(() => {
-      this.mplayer.exec(['loadfile', `"${fileName}"`]);
-    }, (data, resolver) => {
+    return this.mplayer.doOperation<void>((exec) => {
+      exec(['loadfile', `"${fileName}"`]);
+    }, (data, resolve, reject) => {
       if (data.includes('CPLAYER: Starting playback...')) {
-        resolver.resolve();
-        return true;
+        resolve();
+      } else if (data.includes('OPEN: File not found')
+        || data.includes('OPEN: Failed to open')) {
+        reject(data.match(/OPEN: (.*)/)[1]);
       }
-
-      return false;
-    }, (err, resolver) => {
-      if (err.includes('OPEN: File not found')
-        || err.includes('OPEN: Failed to open')) {
-        resolver.reject(err.match(/OPEN: (.*)/)[1]);
-        return true;
-      }
-
-      return false;
     });
   }
 
-  public shutdown(): void {
-    this.mplayer.shutdown();
+  /**
+   * shutdown
+   * 
+   * Shutdown mplayer
+   * 
+   * @returns a promise resolved when the mplayer process is shutdown
+   *          successfully, or rejected when there is an error
+   */
+  public shutdown(): Promise<void> {
+    return this.mplayer.shutdown();
   }
 
   /**
