@@ -1,5 +1,24 @@
 import { MPlayerManager } from './mplayerManager'
 
+export class MPlayerMediaItem {
+  private playing = true;
+
+  protected constructor(
+    private file: string,
+    private mplayer: MPlayerManager
+  ) { }
+
+  public get fileName(): string {
+    return this.file;
+  }
+}
+
+class InternalMPlayerMediaItem extends MPlayerMediaItem {
+  public constructor(file: string, mplayer: MPlayerManager) {
+    super(file, mplayer);
+  }
+}
+
 /**
  * MPlayerImpl
  * 
@@ -28,14 +47,14 @@ export class MPlayerImpl {
    * @returns a promise that resolves when the file is open and  playing,
    *          or is rejected if the file fails to open
    */
-  public openFile(fileName: string): Promise<void> {
+  public openFile(fileName: string): Promise<MPlayerMediaItem> {
     this.log(`Opening file '${fileName}'`);
 
-    return this.mplayer.doOperation<void>((exec) => {
+    return this.mplayer.doOperation<MPlayerMediaItem>((exec) => {
       exec(['loadfile', `"${fileName}"`]);
     }, (data, resolve, reject) => {
       if (data.includes('CPLAYER: Starting playback...')) {
-        resolve();
+        resolve(new InternalMPlayerMediaItem(fileName, this.mplayer));
       } else if (data.includes('OPEN: File not found')
         || data.includes('OPEN: Failed to open')) {
         reject(data.match(/OPEN: (.*)/)[1]);
@@ -52,6 +71,7 @@ export class MPlayerImpl {
    *          successfully, or rejected when there is an error
    */
   public shutdown(): Promise<void> {
+    this.log('Shutting down');
     return this.mplayer.shutdown();
   }
 
