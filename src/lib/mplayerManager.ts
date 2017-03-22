@@ -48,6 +48,7 @@ export class MPlayerManager {
   ): Promise<T> {
     if (this.busy) {
       const msg = 'Busy - cannot execute operation';
+      this.log(msg);
       return Promise.reject(msg);
     }
 

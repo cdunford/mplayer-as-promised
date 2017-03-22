@@ -64,3 +64,89 @@ describe('MPlayerManager.shutdown', () => {
     });
   });
 });
+
+describe('MPlayerManager.doCriticalOperation', () => {
+  let mgr: MPlayerManager;
+  let doOp: sinon.SinonStub;
+  beforeEach(() => {
+    mgr = new MPlayerManager((line) => console.log(line));
+    doOp = sinon.stub();
+    mgr.doOperation = doOp;
+  });
+
+  it('should reject if we\'re already busy', (done) => {
+    (<any>mgr).busy = true;
+
+    mgr.doCriticalOperation<void>((args) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      return;
+    }).then(() => {
+      done('Unexpected promise resolution');
+    }, (reason) => {
+      expect(reason).to.eq('Busy - cannot execute operation');
+      done();
+    });
+  });
+
+  it('should resolve and not be busy if the underlying operation resolves', (done) => {
+    doOp.callsFake((op: Function, processData: Function, timeout?: number) => {
+      return Promise.resolve('Yay!');
+    });
+
+    mgr.doCriticalOperation<string>((args) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      return;
+    }).then((value) => {
+      expect(value).to.eq('Yay!');
+      expect((<any>mgr).busy).to.eq(false);
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+
+  it('should reject and not be busy if the underlying operation rejects', (done) => {
+    doOp.callsFake((op: Function, processData: Function, timeout?: number) => {
+      return Promise.reject('boo!');
+    });
+
+    mgr.doCriticalOperation<string>((args) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      return;
+    }).then((value) => {
+      done('Unexpected promise resolution');
+    }, (reason) => {
+      expect(reason).to.eq('boo!');
+      expect((<any>mgr).busy).to.eq(false);
+      done();
+    });
+  });
+
+  it('a subsequent operation should reject if an operation is already outstanding', (done) => {
+    doOp.callsFake((op: Function, processData: Function, timeout?: number) => {
+      return new Promise((resolve, reject) => {
+        return;
+      });
+    });
+
+    mgr.doCriticalOperation<string>((args) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      return;
+    });
+
+    mgr.doCriticalOperation<string>((args) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      return;
+    }).then((value) => {
+      done('Unexpected promise resolution');
+    }, (reason) => {
+      expect(reason).to.eq('Busy - cannot execute operation');
+      done();
+    });
+  });
+});
