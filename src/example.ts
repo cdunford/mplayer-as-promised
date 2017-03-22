@@ -1,7 +1,7 @@
 import { MPlayer } from './lib/index';
 
 let mplayer = new MPlayer(true);
-mplayer.openFile('V:/Music/Alice in Chains/(1990) Facelift/05 - I Can’t Remember.mp3')
+mplayer.openFile('FILENAME')
   .then((item) => {
     console.log(`Playing ${item.fileName}`);
   }, (err) => {
