@@ -10,8 +10,6 @@ const MPLAYER_ARGS = [
   '-noborder',
 ];
 
-const DEFAULT_OP_TIMEOUT = 2000;
-
 /**
  * MPlayerManager
  * 
@@ -23,6 +21,7 @@ export class MPlayerManager {
 
   private mplayerProc: proc.ChildProcess;
   private ready: boolean = false;
+  private busy: boolean = false;
 
   /**
    * constructor
@@ -30,6 +29,39 @@ export class MPlayerManager {
    * @param log function to log data
    */
   constructor(private log: (line: string) => void) { }
+
+  /**
+   * doCriticalOperation
+   * 
+   * Perform an arbitrary asynchronous operation, preventing other critical
+   * operations from executing while a critical operation is outstanding
+   * 
+   * @param op operation function to execute
+   * @param processData function to callback to process mplayer data
+   * @param timeout timeout length in ms for this operation
+   * @returns a promise resolved when the operation completes or rejected if it fails or times out
+   */
+  public doCriticalOperation<T>(
+    op: (exec: (args: string[]) => Promise<void>) => Promise<void>,
+    processData: (data: string, resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void,
+    timeout: number = 0
+  ): Promise<T> {
+    if (this.busy) {
+      const msg = 'Busy - cannot execute operation';
+      return Promise.reject(msg);
+    }
+
+    this.busy = true;
+
+    return this.doOperation<T>(op, processData, timeout)
+      .then((value) => {
+        this.busy = false;
+        return value;
+      }).catch((reason) => {
+        this.busy = false;
+        return Promise.reject(reason);
+      });
+  }
 
   /**
    * doOperation
@@ -42,78 +74,78 @@ export class MPlayerManager {
    * @returns a promise resolved when the operation completes or rejected if it fails or times out
    */
   public doOperation<T>(
-    op: (exec: (args: string[]) => void) => void,
+    op: (exec: (args: string[]) => Promise<void>) => Promise<void>,
     processData: (data: string, resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void,
-    timeout: number = DEFAULT_OP_TIMEOUT
+    timeout: number = 0
   ): Promise<T> {
 
     return new Promise<T>((resolve, reject) => {
 
       this.readyMPlayer().then(() => {
-        let onData: (chunk: string | Buffer) => void;
-        let onExit: (code: number, signal: string) => void;
-        let onError: (err: Error) => void;
-
         let timer: NodeJS.Timer;
-        if (timeout) {
-          timer = setTimeout(() => {
-            reject('Timed out');
-          }, timeout);
-        }
 
-        const cleanup = () => {
-          if (this.mplayerProc) {
-            this.mplayerProc.stdout.removeListener('data', onData);
-            this.mplayerProc.stderr.removeListener('data', onData);
-            this.mplayerProc.removeListener('exit', onExit);
-            this.mplayerProc.removeListener('error', onError);
-          }
-          if (timer) {
-            clearTimeout(timer);
-          }
-        }
-
-        onData = (chunk) => {
-          chunk = chunk.toString();
-
-          let done = false;
-          for (const data of chunk.split('\n')) {
-            this.log(`data received: ${data}`);
-            processData(data, (value?: T | PromiseLike<T>) => {
-              resolve(value);
-              done = true;
-            }, (reason?: any) => {
-              reject(reason);
-              done = true;
-            });
-
-            if (done) {
-              cleanup();
-              break;
-            }
-          }
-        }
-
-        onExit = (code, signal) => {
+        const onExit = (code: number, signal: string) => {
           if (timer) {
             clearTimeout(timer);
           }
           reject(`MPLAYER exited (${code} - ${signal})`);
         }
 
-        onError = (err) => {
+        const onError = (err: Error) => {
           if (timer) {
             clearTimeout(timer);
           }
           reject(err);
         }
 
-        this.mplayerProc.stdout.on('data', onData);
-        this.mplayerProc.stderr.on('data', onData);
         this.mplayerProc.on('exit', onExit);
         this.mplayerProc.on('error', onError);
 
-        op((args) => this.exec(args));
+        op((args) => this.exec(args)).then(() => {
+          if (timeout) {
+            timer = setTimeout(() => {
+              reject('Timed out');
+            }, timeout);
+          }
+
+          const onData = (chunk: string | Buffer) => {
+            chunk = chunk.toString();
+
+            let done = false;
+            for (const data of chunk.split('\n')) {
+              this.log(`data received: ${data}`);
+              processData(data, (value?: T | PromiseLike<T>) => {
+                resolve(value);
+                done = true;
+              }, (reason?: any) => {
+                reject(reason);
+                done = true;
+              });
+
+              if (done) {
+                if (this.mplayerProc) {
+                  this.mplayerProc.stdout.removeListener('data', onData);
+                  this.mplayerProc.stderr.removeListener('data', onData);
+                  this.mplayerProc.removeListener('exit', onExit);
+                  this.mplayerProc.removeListener('error', onError);
+                }
+                if (timer) {
+                  clearTimeout(timer);
+                }
+
+                break;
+              }
+            }
+          }
+
+          this.mplayerProc.stdout.on('data', onData);
+          this.mplayerProc.stderr.on('data', onData);
+        }, (reason) => {
+          this.mplayerProc.removeListener('exit', onExit);
+          this.mplayerProc.removeListener('error', onError);
+
+          reject(reason);
+        });
       }, (reason) => {
         reject(reason);
       });
@@ -153,11 +185,29 @@ export class MPlayerManager {
    * 
    * @param args an array of args to pass to mplayer, including the command name
    */
-  private exec(args: string[]): void {
-    const cmd = `${args.join(' ')}`;
-    this.log(`Executing: '${cmd}'`);
+  private exec(args: string[]): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cmd = `${args.join(' ')}`;
+      this.log(`Executing: '${cmd}'`);
 
-    this.mplayerProc.stdin.write(`${cmd}\n`);
+      const onError = (err: Error) => {
+        reject(err);
+      }
+      this.mplayerProc.stdin.on('error', onError);
+
+      const noDrain = this.mplayerProc.stdin.write(`${cmd}\n`, () => {
+        if (noDrain) {
+          this.mplayerProc.stdin.removeListener('error', onError);
+          resolve();
+        }
+      });
+
+      if (!noDrain) {
+        this.mplayerProc.stdin.once('drain', () => {
+          resolve();
+        });
+      }
+    });
   }
 
   /**

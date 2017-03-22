@@ -1,29 +1,26 @@
-import { MPlayerImpl, MPlayerMediaItem } from '../lib/index'
+import { MPlayer, MPlayerMediaItem } from '../lib/index'
 import { MPlayerManager } from '../lib/mplayerManager'
 
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import * as sinonChai from 'sinon-chai';
 
-class MPlayerTest extends MPlayerImpl {
-  constructor(mgr: MPlayerManager) {
-    super(true, mgr)
-  }
-}
-
 chai.use(sinonChai);
+const expect = chai.expect;
 
 describe('MPlayer.openFile', () => {
-  let mplayer: MPlayerTest;
+  let mplayer: MPlayer;
   let mgr: any;
 
   beforeEach(() => {
+    mplayer = new MPlayer(true);
+
     mgr = sinon.createStubInstance(MPlayerManager);
-    mplayer = new MPlayerTest(mgr);
+    (<any>mplayer).mplayer = mgr;
   });
 
   it('should resolve promise when playback successful', (done) => {
-    mgr.doOperation.callsFake((
+    mgr.doCriticalOperation.callsFake((
       op: (exec: (args: string[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
@@ -31,16 +28,16 @@ describe('MPlayer.openFile', () => {
 
         const opSpy = sinon.spy();
         op(opSpy);
-        chai.expect(opSpy).to.have.been.calledOnce;
-        chai.expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        chai.expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
 
         processData('CPLAYER: Starting playback...', resolve, reject);
       });
     });
 
     mplayer.openFile('bob').then((item) => {
-      chai.expect(item.fileName).to.eq('bob');
+      expect(item.fileName).to.eq('bob');
       done();
     }).catch((reason) => {
       done(`Promise rejected ${reason}`);
@@ -48,7 +45,7 @@ describe('MPlayer.openFile', () => {
   });
 
   it('should reject promise if file not found', (done) => {
-    mgr.doOperation.callsFake((
+    mgr.doCriticalOperation.callsFake((
       op: (exec: (args: string[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
@@ -56,9 +53,9 @@ describe('MPlayer.openFile', () => {
 
         const opSpy = sinon.spy();
         op(opSpy);
-        chai.expect(opSpy).to.have.been.calledOnce;
-        chai.expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        chai.expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
 
         processData('OPEN: File not found "bob"', resolve, reject);
       });
@@ -67,13 +64,13 @@ describe('MPlayer.openFile', () => {
     mplayer.openFile('bob').then((item) => {
       done('Promise unexpectedly resolved');
     }).catch((reason) => {
-      chai.expect(reason).to.eq('File not found "bob"');
+      expect(reason).to.eq('File not found "bob"');
       done();
     });
   });
 
   it('should reject promise if file failed to open', (done) => {
-    mgr.doOperation.callsFake((
+    mgr.doCriticalOperation.callsFake((
       op: (exec: (args: string[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
@@ -81,9 +78,9 @@ describe('MPlayer.openFile', () => {
 
         const opSpy = sinon.spy();
         op(opSpy);
-        chai.expect(opSpy).to.have.been.calledOnce;
-        chai.expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        chai.expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
 
         processData('OPEN: Failed to open "bob"', resolve, reject);
       });
@@ -92,13 +89,13 @@ describe('MPlayer.openFile', () => {
     mplayer.openFile('bob').then((item) => {
       done('Promise unexpectedly resolved');
     }).catch((reason) => {
-      chai.expect(reason).to.eq('Failed to open "bob"');
+      expect(reason).to.eq('Failed to open "bob"');
       done();
     });
   });
 
   it('should reject promise on timeout', (done) => {
-    mgr.doOperation.callsFake((
+    mgr.doCriticalOperation.callsFake((
       op: (exec: (args: string[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
@@ -106,9 +103,9 @@ describe('MPlayer.openFile', () => {
 
         const opSpy = sinon.spy();
         op(opSpy);
-        chai.expect(opSpy).to.have.been.calledOnce;
-        chai.expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        chai.expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
 
         reject('Timed out');
       });
@@ -117,19 +114,21 @@ describe('MPlayer.openFile', () => {
     mplayer.openFile('bob').then((item) => {
       done('Promise unexpectedly resolved');
     }).catch((reason) => {
-      chai.expect(reason).to.eq('Timed out');
+      expect(reason).to.eq('Timed out');
       done();
     });
   });
 });
 
 describe('MPlayer.shutdown', () => {
-  let mplayer: MPlayerTest;
+  let mplayer: MPlayer;
   let mgr: any;
 
   beforeEach(() => {
+    mplayer = new MPlayer(true);
+
     mgr = sinon.createStubInstance(MPlayerManager);
-    mplayer = new MPlayerTest(mgr);
+    (<any>mplayer).mplayer = mgr;
   });
 
   it('should reject promise if shutdown fails', (done) => {
@@ -156,7 +155,7 @@ describe('MPlayer.shutdown', () => {
     mplayer.shutdown().then(() => {
       done('Promise unexpectedly resolved');
     }).catch((reason) => {
-      chai.expect(reason).to.eq('error shutting down mplayer');
+      expect(reason).to.eq('error shutting down mplayer');
       done();
     });
   });

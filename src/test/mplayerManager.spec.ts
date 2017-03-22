@@ -6,6 +6,8 @@ import * as chai from 'chai';
 import * as sinon from 'sinon';
 import * as sinonChai from 'sinon-chai';
 
+const expect = chai.expect;
+
 describe('MPlayerManager.shutdown', () => {
 
   let mgr: MPlayerManager;
@@ -39,7 +41,7 @@ describe('MPlayerManager.shutdown', () => {
     });
 
     mgr.shutdown().then(() => {
-      chai.expect(kill).to.be.calledOnce;
+      expect(kill).to.be.calledOnce;
       done();
     }).catch((reason) => {
       done(`Promise rejected: ${reason}`);
@@ -56,8 +58,8 @@ describe('MPlayerManager.shutdown', () => {
     mgr.shutdown().then(() => {
       done('Promise resolved unexpectedly');
     }).catch((reason) => {
-      chai.expect(kill).to.be.calledOnce;
-      chai.expect(reason).to.eq('failed to shutdown');
+      expect(kill).to.be.calledOnce;
+      expect(reason).to.eq('failed to shutdown');
       done();
     });
   });

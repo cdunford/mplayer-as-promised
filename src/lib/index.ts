@@ -1,5 +1,13 @@
 import { MPlayerManager } from './mplayerManager'
 
+const DEFAULT_OP_TIMEOUT = 2000;
+const OPEN_OP_TIMEOUT = 8000;
+
+/**
+ * MPlayerMediaItem
+ * 
+ * Class the represents a media item that can be played
+ */
 export class MPlayerMediaItem {
   private playing = true;
 
@@ -20,12 +28,14 @@ class InternalMPlayerMediaItem extends MPlayerMediaItem {
 }
 
 /**
- * MPlayerImpl
+ * MPlayer
  * 
  * Wrapper that provides a promise based API around
  * MPlayer
  */
-export class MPlayerImpl {
+export class MPlayer {
+
+  private mplayer: MPlayerManager;
 
   /**
    * constructor
@@ -33,10 +43,11 @@ export class MPlayerImpl {
    * @param logEnabled whether the object should log to the console
    * @param mplayer MPlayerManager used to communicate to mplayer
    */
-  protected constructor(
-    private logEnabled: boolean,
-    private mplayer: MPlayerManager
-  ) { }
+  public constructor(
+    private logEnabled: boolean
+  ) {
+    this.mplayer = new MPlayerManager((line) => this.log(line));
+  }
 
   /**
    * openFile
@@ -50,8 +61,8 @@ export class MPlayerImpl {
   public openFile(fileName: string): Promise<MPlayerMediaItem> {
     this.log(`Opening file '${fileName}'`);
 
-    return this.mplayer.doOperation<MPlayerMediaItem>((exec) => {
-      exec(['loadfile', `"${fileName}"`]);
+    return this.mplayer.doCriticalOperation<MPlayerMediaItem>((exec) => {
+      return exec(['loadfile', `"${fileName}"`]);
     }, (data, resolve, reject) => {
       if (data.includes('CPLAYER: Starting playback...')) {
         resolve(new InternalMPlayerMediaItem(fileName, this.mplayer));
@@ -59,7 +70,7 @@ export class MPlayerImpl {
         || data.includes('OPEN: Failed to open')) {
         reject(data.match(/OPEN: (.*)/)[1]);
       }
-    });
+    }, OPEN_OP_TIMEOUT);
   }
 
   /**
@@ -86,23 +97,5 @@ export class MPlayerImpl {
     if (this.logEnabled) {
       console.log(`${new Date().toISOString()}: ${line}`);
     }
-  }
-}
-
-/**
- * MPlayer
- * 
- * Wrapper that provides a promise based API around
- * MPlayer
- */
-export class MPlayer extends MPlayerImpl {
-
-  /**
-   * constructor
-   * 
-   * @param logEnabled whether logging to console is enabled
-   */
-  public constructor(logEnabled: boolean = false) {
-    super(logEnabled, new MPlayerManager((line) => this.log(line)));
   }
 }
