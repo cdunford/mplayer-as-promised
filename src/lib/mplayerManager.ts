@@ -124,15 +124,13 @@ export class MPlayerManager {
               });
 
               if (done) {
-                if (this.mplayerProc) {
-                  this.mplayerProc.stdout.removeListener('data', onData);
-                  this.mplayerProc.stderr.removeListener('data', onData);
-                  this.mplayerProc.removeListener('exit', onExit);
-                  this.mplayerProc.removeListener('error', onError);
-                }
                 if (timer) {
                   clearTimeout(timer);
                 }
+                this.mplayerProc.stdout.removeListener('data', onData);
+                this.mplayerProc.stderr.removeListener('data', onData);
+                this.mplayerProc.removeListener('exit', onExit);
+                this.mplayerProc.removeListener('error', onError);
 
                 break;
               }
