@@ -246,11 +246,7 @@ export class MPlayerManager {
           handleProcCompletion();
         });
 
-        let onData: (chunk: string | Buffer) => void;
-        let onExit: (code: number, signal: string) => void;
-        let onError: (err: Error) => void;
-
-        onData = (chunk) => {
+        const onData = (chunk: string | Buffer) => {
           chunk = chunk.toString();
           for (const data of chunk.split('\n')) {
             this.log(`data received: ${data}`);
@@ -267,11 +263,11 @@ export class MPlayerManager {
           }
         }
 
-        onExit = (code, signal) => {
+        const onExit = (code: number, signal: string) => {
           reject(`MPLAYER exited (${code} - ${signal})`);
         }
 
-        onError = (err) => {
+        const onError = (err: Error) => {
           reject(err);
         }
 
