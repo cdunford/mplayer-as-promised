@@ -11,19 +11,112 @@ const OPEN_OP_TIMEOUT = 8000;
 export class MPlayerMediaItem {
   private playing = true;
 
+  /**
+   * constructor
+   * 
+   * @param file the file this item represents 
+   * @param mplayer MPlayerManager used to interact with mplayer
+   * @param log function to use to log
+   */
   protected constructor(
     private file: string,
-    private mplayer: MPlayerManager
+    private mplayer: MPlayerManager,
+    private log: (line: string) => void
   ) { }
 
+  /**
+   * fileName
+   * 
+   * @returns the file this item represents
+   */
   public get fileName(): string {
     return this.file;
   }
+
+  /**
+   * isPlaying
+   * 
+   * @returns whether the media is playing
+   */
+  public get isPlaying(): boolean {
+    return this.playing;
+  }
+
+  /**
+   * pause
+   * 
+   * pauses the media
+   * 
+   * @returns a promise that resolves when the media is paused
+   */
+  public pause(): Promise<void> {
+    this.log(`Pausing ${this.file}`);
+
+    if (!this.playing) {
+      return Promise.resolve();
+    }
+
+    return this.mplayer.doCriticalOperation<void>((exec) => {
+      return exec(['pause']);
+    }, (data, resolve, reject) => {
+      if (data.includes('CPLAYER:   =====  PAUSE  =====')) {
+        this.playing = false;
+        resolve();
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+   * play
+   * 
+   * plays the media
+   * 
+   * @returns a promise that resolves when the media is playing
+   */
+  public play(): Promise<void> {
+    this.log(`Playing ${this.file}`);
+
+    if (this.playing) {
+      return Promise.resolve();
+    }
+
+    return this.mplayer.doCriticalOperation<void>((exec) => {
+      return exec(['pause']).then(() => {
+        this.mplayer.doOperation<void>((innerExec) => {
+          return innerExec(['get_property', 'pause']);
+        }, (data, resolve, reject) => {
+          if (data.includes('GLOBAL: ANS_pause=no')) {
+            resolve();
+          }
+        }, DEFAULT_OP_TIMEOUT);
+      });
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_pause=no')) {
+        this.playing = true;
+        resolve();
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
 }
 
+/**
+ * InternalMPlayerMediaItem
+ * 
+ * * Class the represents a media item that can be played
+ */
 class InternalMPlayerMediaItem extends MPlayerMediaItem {
-  public constructor(file: string, mplayer: MPlayerManager) {
-    super(file, mplayer);
+
+  /**
+   * constructor
+   * 
+   * @param file the file this item represents 
+   * @param mplayer MPlayerManager used to interact with mplayer
+   */
+  public constructor(
+    file: string,
+    mplayer: MPlayerManager,
+    log: (line: string) => void) {
+    super(file, mplayer, log);
   }
 }
 
@@ -65,7 +158,7 @@ export class MPlayer {
       return exec(['loadfile', `"${fileName}"`]);
     }, (data, resolve, reject) => {
       if (data.includes('CPLAYER: Starting playback...')) {
-        resolve(new InternalMPlayerMediaItem(fileName, this.mplayer));
+        resolve(new InternalMPlayerMediaItem(fileName, this.mplayer, (line) => this.log(line)));
       } else if (data.includes('OPEN: File not found')
         || data.includes('OPEN: Failed to open')) {
         reject(data.match(/OPEN: (.*)/)[1]);

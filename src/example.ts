@@ -1,12 +1,26 @@
-import { MPlayer } from './lib/index';
+import { MPlayer, MPlayerMediaItem } from './lib/index';
 
-let mplayer = new MPlayer(true);
+const mplayer = new MPlayer(true);
+let mitem: MPlayerMediaItem;
 mplayer.openFile('FILENAME')
   .then((item) => {
     console.log(`Playing ${item.fileName}`);
+    mitem = item;
   }, (err) => {
     console.log(`UH OH - ${err}`);
   });
+
+setTimeout(() => {
+  mitem.pause().then(() => {
+    console.log('Paused!');
+
+    setTimeout(() => {
+      mitem.play().then(() => {
+        console.log('Playing!');
+      })
+    }, 2000);
+  })
+}, 2000);
 
 setTimeout(() => {
   mplayer.shutdown().then(() => {
@@ -14,4 +28,4 @@ setTimeout(() => {
   }, (reason: any) => {
     console.log(`shutdown failed: ${reason}`);
   });
-}, 10000);
+}, 45000);

@@ -219,6 +219,7 @@ export class MPlayerManager {
     return new Promise<void>((resolve, reject) => {
       if (this.ready && this.mplayerProc) {
         resolve();
+        return;
       }
 
       const spawnMPlayer = () => {
