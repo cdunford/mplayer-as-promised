@@ -77,7 +77,7 @@ describe('MPlayerManager.doCriticalOperation', () => {
   it('should reject if we\'re already busy', (done) => {
     (<any>mgr).busy = true;
 
-    mgr.doCriticalOperation<void>((args) => {
+    mgr.doCriticalOperation<void>((exec) => {
       return Promise.resolve();
     }, (data, resolve, reject) => {
       return;
@@ -94,7 +94,7 @@ describe('MPlayerManager.doCriticalOperation', () => {
       return Promise.resolve('Yay!');
     });
 
-    mgr.doCriticalOperation<string>((args) => {
+    mgr.doCriticalOperation<string>((exec) => {
       return Promise.resolve();
     }, (data, resolve, reject) => {
       return;
@@ -112,7 +112,7 @@ describe('MPlayerManager.doCriticalOperation', () => {
       return Promise.reject('boo!');
     });
 
-    mgr.doCriticalOperation<string>((args) => {
+    mgr.doCriticalOperation<string>((exec) => {
       return Promise.resolve();
     }, (data, resolve, reject) => {
       return;
@@ -132,13 +132,13 @@ describe('MPlayerManager.doCriticalOperation', () => {
       });
     });
 
-    mgr.doCriticalOperation<string>((args) => {
+    mgr.doCriticalOperation<string>((exec) => {
       return Promise.resolve();
     }, (data, resolve, reject) => {
       return;
     });
 
-    mgr.doCriticalOperation<string>((args) => {
+    mgr.doCriticalOperation<string>((exec) => {
       return Promise.resolve();
     }, (data, resolve, reject) => {
       return;
@@ -147,6 +147,138 @@ describe('MPlayerManager.doCriticalOperation', () => {
     }, (reason) => {
       expect(reason).to.eq('Busy - cannot execute operation');
       done();
+    });
+  });
+});
+
+describe('MPlayerManager.doOperation', () => {
+  let mgr: MPlayerManager;
+  let mplayerProc: any;
+  let spawn: sinon.SinonStub;
+
+  beforeEach(() => {
+    mgr = new MPlayerManager((line) => console.log(line));
+
+    spawn = sinon.stub();
+    (<any>proc).spawn = spawn;
+
+    mplayerProc = {
+      on: sinon.stub(),
+      removeListener: sinon.stub(),
+      removeAllListeners: sinon.stub(),
+      stdout: {
+        on: sinon.stub(),
+        removeListener: sinon.stub(),
+        removeAllListeners: sinon.stub(),
+      },
+      stderr: {
+        on: sinon.stub(),
+        removeListener: sinon.stub(),
+        removeAllListeners: sinon.stub(),
+      }
+    };
+  });
+
+  it('should reject promise on timeout', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.stdout.on.withArgs('data', sinon.match.any).onCall(0).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('CPLAYER: MPlayer');
+      }, 10);
+    });
+
+    mgr.doOperation<void>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      return;
+    }, 10).then(() => {
+      done('Unexpected promise resolution')
+    }, (reason) => {
+      expect(reason).to.eq('Timed out');
+      done();
+    });
+  });
+
+  it('should reject promise on mplayer error', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.on.withArgs('error', sinon.match.any).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('AHHHH');
+      }, 10);
+    });
+
+    mgr.doOperation<void>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      return;
+    }).then(() => {
+      done('Unexpected promise resolution')
+    }, (reason) => {
+      expect(reason).to.eq('AHHHH');
+      expect(mplayerProc.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stdout.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stderr.removeAllListeners).to.have.been.calledOnce;
+
+      done();
+    });
+  });
+
+  it('should reject promise on mplayer exit', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.on.withArgs('exit', sinon.match.any).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb(55, 'signal!');
+      }, 10);
+    });
+
+    mgr.doOperation<void>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      return;
+    }).then(() => {
+      done('Unexpected promise resolution')
+    }, (reason) => {
+      expect(reason).to.eq('MPLAYER exited (55 - signal!)');
+      expect(mplayerProc.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stdout.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stderr.removeAllListeners).to.have.been.calledOnce;
+
+      done();
+    });
+  });
+
+  it('should resolve promise when operation completes successfully', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.stdout.on.withArgs('data', sinon.match.any).onCall(0).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('CPLAYER: MPlayer');
+      }, 10);
+    });
+
+    mplayerProc.stdout.on.withArgs('data', sinon.match.any).onCall(1).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('Some stuff');
+      }, 10);
+    });
+
+    mgr.doOperation<string>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      expect(data).to.eq('Some stuff');
+      resolve('bob');
+    }).then((value) => {
+      expect(value).to.eq('bob');
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
     });
   });
 });
