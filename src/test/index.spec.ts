@@ -160,3 +160,81 @@ describe('MPlayer.shutdown', () => {
     });
   });
 });
+
+class MPlayerMediaItemTest extends MPlayerMediaItem {
+  public constructor(
+    file: string,
+    mplayer: MPlayerManager) {
+    super(file, mplayer, (line) => console.log(line));
+  }
+}
+
+describe('MPlayerMediaItem.play', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if already playing', (done) => {
+    expect(item.isPlaying).to.be.true;
+
+    item.play().then(() => {
+      expect(item.isPlaying).to.be.true;
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+
+  it('should resolve if play succeeds', (done) => {
+    (<any>item).playing = false;
+    let playProcessData: Function;
+    let playResolve: Function;
+    let playReject: Function;
+
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (args: string[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+        playProcessData = processData;
+        playResolve = resolve;
+        playReject = reject;
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('pause');
+      });
+    });
+
+    mgr.doOperation.callsFake((
+      op: (exec: (args: string[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+        const opSpy = sinon.stub();
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0][0]).to.eq('get_property');
+        expect(opSpy.getCall(0).args[0][1]).to.eq('pause');
+
+        processData('GLOBAL: ANS_pause=no', resolve, reject);
+        playProcessData('GLOBAL: ANS_pause=no', playResolve, playReject);
+      });
+    });
+
+    item.play().then(() => {
+      expect(item.isPlaying).to.be.true;
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+});

@@ -281,4 +281,68 @@ describe('MPlayerManager.doOperation', () => {
       done(`Promise rejected: ${reason}`);
     });
   });
+
+  it('should reject promise on error after ready', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.stdout.on.withArgs('data', sinon.match.any).onCall(0).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('CPLAYER: MPlayer');
+      }, 5);
+    });
+
+    mplayerProc.on.withArgs('error', sinon.match.any).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('oh no');
+      }, 50);
+    });
+
+    mgr.doOperation<void>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      return;
+    }, 2000).then(() => {
+      done('Unexpected promise resolution')
+    }, (reason) => {
+      expect(reason).to.eq('oh no');
+      expect(mplayerProc.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stdout.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stderr.removeAllListeners).to.have.been.calledOnce;
+
+      done();
+    });
+  });
+
+  it('should reject promise on exit after ready', (done) => {
+    spawn.withArgs('mplayer', sinon.match.any).returns(mplayerProc);
+    mplayerProc.stdout.on.withArgs('data', sinon.match.any).onCall(0).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb('CPLAYER: MPlayer');
+      }, 5);
+    });
+
+    mplayerProc.on.withArgs('exit', sinon.match.any).callsFake((evt: string, cb: Function) => {
+      setTimeout(() => {
+        cb(55, 'hello');
+      }, 50);
+    });
+
+    mgr.doOperation<void>((exec) => {
+      return new Promise<void>((resolve, reject) => {
+        resolve();
+      });
+    }, (data, resolve, reject) => {
+      return;
+    }, 2000).then(() => {
+      done('Unexpected promise resolution')
+    }, (reason) => {
+      expect(reason).to.eq('MPLAYER exited (55 - hello)');
+      expect(mplayerProc.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stdout.removeAllListeners).to.have.been.calledOnce;
+      expect(mplayerProc.stderr.removeAllListeners).to.have.been.calledOnce;
+
+      done();
+    });
+  });
 });
