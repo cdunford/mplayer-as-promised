@@ -57,7 +57,7 @@ export class MPlayerMediaItem {
     }
 
     return this.mplayer.doCriticalOperation<void>((exec) => {
-      return exec(['pause']);
+      return exec('pause');
     }, (data, resolve, reject) => {
       if (data.includes('CPLAYER:   =====  PAUSE  =====')) {
         this.playing = false;
@@ -81,9 +81,9 @@ export class MPlayerMediaItem {
     }
 
     return this.mplayer.doCriticalOperation<void>((exec) => {
-      return exec(['pause']).then(() => {
+      return exec('pause').then(() => {
         this.mplayer.doOperation<void>((innerExec) => {
-          return innerExec(['get_property', 'pause']);
+          return innerExec('pausing_keep_force', 'get_property', 'pause');
         }, (data, resolve, reject) => {
           if (data.includes('GLOBAL: ANS_pause=no')) {
             resolve();
@@ -93,6 +93,53 @@ export class MPlayerMediaItem {
     }, (data, resolve, reject) => {
       if (data.includes('GLOBAL: ANS_pause=no')) {
         this.playing = true;
+        resolve();
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+   * seekTo
+   * 
+   * Seek to a specific time
+   * 
+   * @param time the time to seek to (in seconds)
+   * @returns a promise resolved when seeking is complete or rejected if the time is invalid
+   */
+  public seekTo(time: number): Promise<void> {
+    this.log(`Seeking to ${time}`);
+
+    return this.doSeek(time, 2);
+  }
+
+  /**
+   * seekBy
+   * 
+   * Seek by a specified number of seconds
+   * 
+   * @param offset the number of seconds to seek (negative value seeks backwards)
+   * @returns a promise resolved when seeking is complete or rejected if the time is invalid
+   */
+  public seekBy(offset: number): Promise<void> {
+    this.log(`Seeking by ${offset}`);
+
+    return this.doSeek(offset, 0);
+  }
+
+  /**
+   * doSeek
+   * 
+   * Handle common seek behavior
+   * 
+   * @param value the seek value
+   * @param type the type of seek
+   * @returns a promise resolved when seeking completes
+   */
+  private doSeek(value: number, type: number): Promise<void> {
+    return this.mplayer.doCriticalOperation<void>((exec) => {
+      return exec('pausing_keep', 'seek', value, type);
+    }, (data, resolve, reject) => {
+      if (data.includes('CPLAYER: Position:')) {
         resolve();
       }
     }, DEFAULT_OP_TIMEOUT);
@@ -129,6 +176,7 @@ class InternalMPlayerMediaItem extends MPlayerMediaItem {
 export class MPlayer {
 
   private mplayer: MPlayerManager;
+  private activeItem: MPlayerMediaItem;
 
   /**
    * constructor
@@ -136,9 +184,7 @@ export class MPlayer {
    * @param logEnabled whether the object should log to the console
    * @param mplayer MPlayerManager used to communicate to mplayer
    */
-  public constructor(
-    private logEnabled: boolean
-  ) {
+  public constructor(private logEnabled: boolean = false) {
     this.mplayer = new MPlayerManager((line) => this.log(line));
   }
 
@@ -155,10 +201,11 @@ export class MPlayer {
     this.log(`Opening file '${fileName}'`);
 
     return this.mplayer.doCriticalOperation<MPlayerMediaItem>((exec) => {
-      return exec(['loadfile', `"${fileName}"`]);
+      return exec('loadfile', `"${fileName}"`);
     }, (data, resolve, reject) => {
       if (data.includes('CPLAYER: Starting playback...')) {
-        resolve(new InternalMPlayerMediaItem(fileName, this.mplayer, (line) => this.log(line)));
+        this.activeItem = new InternalMPlayerMediaItem(fileName, this.mplayer, (line) => this.log(line));
+        resolve(this.activeItem);
       } else if (data.includes('OPEN: File not found')
         || data.includes('OPEN: Failed to open')) {
         reject(data.match(/OPEN: (.*)/)[1]);

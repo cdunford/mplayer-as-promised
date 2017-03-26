@@ -21,7 +21,7 @@ describe('MPlayer.openFile', () => {
 
   it('should resolve promise when playback successful', (done) => {
     mgr.doCriticalOperation.callsFake((
-      op: (exec: (args: string[]) => void) => void,
+      op: (exec: (...args: (string | number)[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
       return new Promise<MPlayerMediaItem>((resolve, reject) => {
@@ -29,8 +29,8 @@ describe('MPlayer.openFile', () => {
         const opSpy = sinon.spy();
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy.getCall(0).args[0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[1]).to.eq('"bob"');
 
         processData('CPLAYER: Starting playback...', resolve, reject);
       });
@@ -46,7 +46,7 @@ describe('MPlayer.openFile', () => {
 
   it('should reject promise if file not found', (done) => {
     mgr.doCriticalOperation.callsFake((
-      op: (exec: (args: string[]) => void) => void,
+      op: (exec: (...args: (string | number)[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
       return new Promise<MPlayerMediaItem>((resolve, reject) => {
@@ -54,8 +54,8 @@ describe('MPlayer.openFile', () => {
         const opSpy = sinon.spy();
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy.getCall(0).args[0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[1]).to.eq('"bob"');
 
         processData('OPEN: File not found "bob"', resolve, reject);
       });
@@ -71,7 +71,7 @@ describe('MPlayer.openFile', () => {
 
   it('should reject promise if file failed to open', (done) => {
     mgr.doCriticalOperation.callsFake((
-      op: (exec: (args: string[]) => void) => void,
+      op: (exec: (...args: (string | number)[]) => void) => void,
       processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
       return new Promise<MPlayerMediaItem>((resolve, reject) => {
@@ -79,8 +79,8 @@ describe('MPlayer.openFile', () => {
         const opSpy = sinon.spy();
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy.getCall(0).args[0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[1]).to.eq('"bob"');
 
         processData('OPEN: Failed to open "bob"', resolve, reject);
       });
@@ -104,8 +104,8 @@ describe('MPlayer.openFile', () => {
         const opSpy = sinon.spy();
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('loadfile');
-        expect(opSpy.getCall(0).args[0][1]).to.eq('"bob"');
+        expect(opSpy.getCall(0).args[0]).to.eq('loadfile');
+        expect(opSpy.getCall(0).args[1]).to.eq('"bob"');
 
         reject('Timed out');
       });
@@ -196,7 +196,7 @@ describe('MPlayerMediaItem.play', () => {
     let playReject: Function;
 
     mgr.doCriticalOperation.callsFake((
-      op: (exec: (args: string[]) => void) => void,
+      op: (exec: (...args: (string | number)[]) => void) => void,
       processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
       timeout?: number) => {
       return new Promise<void>((resolve, reject) => {
@@ -209,7 +209,7 @@ describe('MPlayerMediaItem.play', () => {
 
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('pause');
+        expect(opSpy.getCall(0).args[0]).to.eq('pause');
       });
     });
 
@@ -222,8 +222,9 @@ describe('MPlayerMediaItem.play', () => {
 
         op(opSpy);
         expect(opSpy).to.have.been.calledOnce;
-        expect(opSpy.getCall(0).args[0][0]).to.eq('get_property');
-        expect(opSpy.getCall(0).args[0][1]).to.eq('pause');
+        expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep_force');
+        expect(opSpy.getCall(0).args[1]).to.eq('get_property');
+        expect(opSpy.getCall(0).args[2]).to.eq('pause');
 
         processData('GLOBAL: ANS_pause=no', resolve, reject);
         playProcessData('GLOBAL: ANS_pause=no', playResolve, playReject);
@@ -232,6 +233,132 @@ describe('MPlayerMediaItem.play', () => {
 
     item.play().then(() => {
       expect(item.isPlaying).to.be.true;
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+});
+
+describe('MPlayerMediaItem.pause', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if already paused', (done) => {
+    (<any>item).playing = false;
+
+    item.pause().then(() => {
+      expect(item.isPlaying).to.be.false;
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+
+  it('should resolve if pause succeeds', (done) => {
+
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('pause');
+
+        processData('CPLAYER:   =====  PAUSE  =====', resolve, reject);
+      });
+    });
+
+    item.pause().then(() => {
+      expect(item.isPlaying).to.be.false;
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+});
+
+describe('MPlayerMediaItem.seekTo', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep');
+        expect(opSpy.getCall(0).args[1]).to.eq('seek');
+        expect(opSpy.getCall(0).args[2]).to.eq(15);
+        expect(opSpy.getCall(0).args[3]).to.eq(2);
+
+        processData('CPLAYER: Position: 15 %', resolve, reject);
+      });
+    });
+
+    item.seekTo(15).then(() => {
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    });
+  });
+});
+
+describe('MPlayerMediaItem.seekBy', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep');
+        expect(opSpy.getCall(0).args[1]).to.eq('seek');
+        expect(opSpy.getCall(0).args[2]).to.eq(-20);
+        expect(opSpy.getCall(0).args[3]).to.eq(0);
+
+        processData('CPLAYER: Position: 15 %', resolve, reject);
+      });
+    });
+
+    item.seekBy(-20).then(() => {
       done();
     }, (reason) => {
       done(`Promise rejected: ${reason}`);

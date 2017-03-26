@@ -8,6 +8,7 @@ const MPLAYER_ARGS = [
   '-slave',
   '-fs',
   '-noborder',
+  '-nofontconfig',
 ];
 
 /**
@@ -42,7 +43,7 @@ export class MPlayerManager {
    * @returns a promise resolved when the operation completes or rejected if it fails or times out
    */
   public doCriticalOperation<T>(
-    op: (exec: (args: string[]) => Promise<void>) => Promise<void>,
+    op: (exec: (...args: (string | number)[]) => Promise<void>) => Promise<void>,
     processData: (data: string, resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void,
     timeout: number = 0
   ): Promise<T> {
@@ -75,7 +76,7 @@ export class MPlayerManager {
    * @returns a promise resolved when the operation completes or rejected if it fails or times out
    */
   public doOperation<T>(
-    op: (exec: (args: string[]) => Promise<void>) => Promise<void>,
+    op: (exec: (...args: (string | number)[]) => Promise<void>) => Promise<void>,
     processData: (data: string, resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void,
     timeout: number = 0
   ): Promise<T> {
@@ -102,7 +103,7 @@ export class MPlayerManager {
         this.mplayerProc.on('exit', onExit);
         this.mplayerProc.on('error', onError);
 
-        op((args) => this.exec(args)).then(() => {
+        op((...args) => this.exec(...args)).then(() => {
           if (timeout) {
             timer = setTimeout(() => {
               reject('Timed out');
@@ -184,7 +185,7 @@ export class MPlayerManager {
    * 
    * @param args an array of args to pass to mplayer, including the command name
    */
-  private exec(args: string[]): Promise<void> {
+  private exec(...args: (string | number)[]): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const cmd = `${args.join(' ')}`;
       this.log(`Executing: '${cmd}'`);
