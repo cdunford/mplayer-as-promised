@@ -22,7 +22,9 @@ export class MPlayerMediaItem {
     private file: string,
     private mplayer: MPlayerManager,
     private log: (line: string) => void
-  ) { }
+  ) {
+    this.listen().then(() => this.mplayer = undefined, () => this.mplayer = undefined);
+  }
 
   /**
    * fileName
@@ -39,6 +41,10 @@ export class MPlayerMediaItem {
    * @returns whether the media is playing
    */
   public get isPlaying(): boolean {
+    if (!this.mplayer) {
+      return false;
+    }
+
     return this.playing;
   }
 
@@ -52,7 +58,9 @@ export class MPlayerMediaItem {
   public pause(): Promise<void> {
     this.log(`Pausing ${this.file}`);
 
-    if (!this.playing) {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    } else if (!this.playing) {
       return Promise.resolve();
     }
 
@@ -76,7 +84,9 @@ export class MPlayerMediaItem {
   public play(): Promise<void> {
     this.log(`Playing ${this.file}`);
 
-    if (this.playing) {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    } else if (this.playing) {
       return Promise.resolve();
     }
 
@@ -126,6 +136,41 @@ export class MPlayerMediaItem {
     return this.doSeek(offset, 0);
   }
 
+  public stop(): Promise<void> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<void>((exec) => {
+      return exec('stop');
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: EOF code:')) {
+        resolve();
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+   * listen
+   * 
+   * @returns a promise resolved when the item finishes or is rejected when the item is forcibly stopped
+   */
+  public listen(): Promise<void> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doOperation<void>((exec) => {
+      return Promise.resolve();
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: EOF code: 0') || data.includes('GLOBAL: EOF code: 1')) {
+        resolve();
+      } else if (data.includes('GLOBAL: EOF code:')) {
+        reject('Playback ended prematurely');
+      }
+    });
+  }
+
   /**
    * doSeek
    * 
@@ -136,6 +181,10 @@ export class MPlayerMediaItem {
    * @returns a promise resolved when seeking completes
    */
   private doSeek(value: number, type: number): Promise<void> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
     return this.mplayer.doCriticalOperation<void>((exec) => {
       return exec('pausing_keep', 'seek', value, type);
     }, (data, resolve, reject) => {
