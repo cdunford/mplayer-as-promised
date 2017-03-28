@@ -20,11 +20,9 @@ export class MPlayerMediaItem {
    */
   protected constructor(
     private file: string,
-    private mplayer: MPlayerManager,
+    protected mplayer: MPlayerManager,
     private log: (line: string) => void
-  ) {
-    this.listen().then(() => this.mplayer = undefined, () => this.mplayer = undefined);
-  }
+  ) { }
 
   /**
    * fileName
@@ -46,6 +44,44 @@ export class MPlayerMediaItem {
     }
 
     return this.playing;
+  }
+
+  /**
+   * getCurrentTime
+   * 
+   * @returns a promise that resolves with the current time position of the item
+   */
+  public getCurrentTime(): Promise<number> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<number>((exec) => {
+      return exec('pausing_keep_force', 'get_property', 'time_pos');
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_time_pos=')) {
+        resolve(parseFloat(data.match(/GLOBAL: ANS_time_pos=([0-9\.]+)/)[1]));
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+   * getCurrentPercent
+   * 
+   * @returns a promise that resolves with the current percentage complete of the item
+   */
+  public getCurrentPercent(): Promise<number> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<number>((exec) => {
+      return exec('pausing_keep_force', 'get_property', 'percent_pos');
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_percent_pos=')) {
+        resolve(parseFloat(data.match(/GLOBAL: ANS_percent_pos=([0-9\.]+)/)[1]));
+      }
+    }, DEFAULT_OP_TIMEOUT);
   }
 
   /**
@@ -214,6 +250,15 @@ class InternalMPlayerMediaItem extends MPlayerMediaItem {
     log: (line: string) => void) {
     super(file, mplayer, log);
   }
+
+  /**
+   * cleanup
+   * 
+   * cleans up this item
+   */
+  public cleanup() {
+    this.mplayer = undefined;
+  }
 }
 
 /**
@@ -225,7 +270,7 @@ class InternalMPlayerMediaItem extends MPlayerMediaItem {
 export class MPlayer {
 
   private mplayer: MPlayerManager;
-  private activeItem: MPlayerMediaItem;
+  private activeItem: InternalMPlayerMediaItem;
 
   /**
    * constructor
@@ -249,17 +294,45 @@ export class MPlayer {
   public openFile(fileName: string): Promise<MPlayerMediaItem> {
     this.log(`Opening file '${fileName}'`);
 
-    return this.mplayer.doCriticalOperation<MPlayerMediaItem>((exec) => {
-      return exec('loadfile', `"${fileName}"`);
-    }, (data, resolve, reject) => {
-      if (data.includes('CPLAYER: Starting playback...')) {
-        this.activeItem = new InternalMPlayerMediaItem(fileName, this.mplayer, (line) => this.log(line));
-        resolve(this.activeItem);
-      } else if (data.includes('OPEN: File not found')
-        || data.includes('OPEN: Failed to open')) {
-        reject(data.match(/OPEN: (.*)/)[1]);
+    const performOpen = () => {
+      return this.mplayer.doCriticalOperation<MPlayerMediaItem>((exec) => {
+        return exec('loadfile', `"${fileName}"`);
+      }, (data, resolve, reject) => {
+        if (data.includes('CPLAYER: Starting playback...')) {
+          this.activeItem = new InternalMPlayerMediaItem(fileName, this.mplayer, (line) => this.log(line));
+          this.activeItem.listen().then(() => {
+            this.activeItem.cleanup();
+            this.activeItem = undefined;
+          }, () => {
+            this.activeItem.cleanup();
+            this.activeItem = undefined;
+          });
+          resolve(this.activeItem);
+        } else if (data.includes('OPEN: File not found')
+          || data.includes('OPEN: Failed to open')) {
+          reject(data.match(/OPEN: (.*)/)[1]);
+        }
+      }, OPEN_OP_TIMEOUT);
+    }
+
+    return new Promise<MPlayerMediaItem>((resolve, reject) => {
+      let stop: Promise<void>;
+      if (this.activeItem) {
+        stop = this.activeItem.stop();
+      } else {
+        stop = Promise.resolve();
       }
-    }, OPEN_OP_TIMEOUT);
+
+      stop.then(() => {
+        performOpen().then((item) => {
+          resolve(item);
+        }, (reason) => {
+          reject(reason);
+        });
+      }, (reason) => {
+        reject(`Failed to stop previous media item: ${reason}`);
+      });
+    });
   }
 
   /**
