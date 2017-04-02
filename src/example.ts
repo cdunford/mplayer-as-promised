@@ -1,31 +1,57 @@
 import { MPlayer, MPlayerMediaItem } from './lib/index';
 
-const mplayer = new MPlayer(true);
-let mitem: MPlayerMediaItem;
-mplayer.openFile('FILENAME')
-  .then((item) => {
-    console.log(`Playing ${item.fileName}`);
-    mitem = item;
-  }, (err) => {
-    console.log(`UH OH - ${err}`);
-  });
+//Create the MPlayer object
+const mplayer = new MPlayer();
 
-setTimeout(() => {
-  mitem.pause().then(() => {
-    console.log('Paused!');
+//Open a file
+mplayer.openFile('V:/Music/Alice in Chains/(1992) Dirt/03 - Rain When I Die.mp3').then((item) => onItemOpen(item), (reason) => console.log(reason));
+
+const onItemOpen = (item: MPlayerMediaItem) => {
+  setTimeout(() => {
+    //Pause the item
+    item.pause().then(() => onItemPause(item), (reason) => console.log(reason));
+  }, 5000);
+}
+
+const onItemPause = (item: MPlayerMediaItem) => {
+  setTimeout(() => {
+    //Play the item again
+    item.play().then(() => onItemPlay(item), (reason) => console.log(reason));
+  }, 5000);
+}
+
+const onItemPlay = (item: MPlayerMediaItem) => {
+  setTimeout(() => {
+    //Seek to the 1 minute mark
+    item.seekTo(60).then(() => onItemSeekTo(item), (reason) => console.log(reason));
+  }, 5000)
+}
+
+const onItemSeekTo = (item: MPlayerMediaItem) => {
+  //Get the current position of the item
+  item.getCurrentTime().then((time) => {
+    console.log(`Current position: ${time}`);
 
     setTimeout(() => {
-      mitem.play().then(() => {
-        console.log('Playing!');
-      })
-    }, 2000);
-  })
-}, 2000);
+      //Seek forward 2 minutes
+      item.seekBy(120).then(() => onItemSeekBy(item), (reason) => console.log(reason));
+    }, 5000);
 
-setTimeout(() => {
-  mplayer.shutdown().then(() => {
-    console.log('shutdown complete');
-  }, (reason: any) => {
-    console.log(`shutdown failed: ${reason}`);
-  });
-}, 45000);
+  }, (reason) => console.log(reason));
+}
+
+const onItemSeekBy = (item: MPlayerMediaItem) => {
+  //Get the current position (percent) of the item
+  item.getCurrentPercent().then((percent) => {
+    console.log(`Current position: ${percent}%`);
+
+    //Wait for the item to complete
+    item.listen().then(() => onItemComplete(item), (reason) => console.log(reason));
+
+  }, (reason) => console.log(reason));
+}
+
+const onItemComplete = (item: MPlayerMediaItem) => {
+  //shutdown mplayer
+  mplayer.shutdown().then(() => console.log('Shutdown!'), (reason) => console.log(reason));
+}
