@@ -36,6 +36,15 @@ describe('MPlayer.openFile', () => {
       });
     });
 
+    mgr.doOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: MPlayerMediaItem | PromiseLike<MPlayerMediaItem>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+        return;
+      });
+    });
+
     mplayer.openFile('bob').then((item) => {
       expect(item.fileName).to.eq('bob');
       done();
@@ -363,5 +372,148 @@ describe('MPlayerMediaItem.seekBy', () => {
     }, (reason) => {
       done(`Promise rejected: ${reason}`);
     });
+  });
+});
+
+describe('MPlayerMediaItem.stop', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('stop');
+
+        processData('GLOBAL: EOF code: 4', resolve, reject);
+      });
+    });
+
+    item.stop().then(() => {
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    })
+  });
+});
+
+describe('MPlayerMediaItem.listen', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+    mgr.doOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+        op(opSpy);
+
+        processData('GLOBAL: EOF code: 0', resolve, reject);
+      });
+    });
+
+    item.listen().then(() => {
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    })
+  });
+});
+
+describe('MPlayerMediaItem.getCurrentTime', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep_force');
+        expect(opSpy.getCall(0).args[1]).to.eq('get_property');
+        expect(opSpy.getCall(0).args[2]).to.eq('time_pos');
+
+        processData('GLOBAL: ANS_time_pos=15.2', resolve, reject);
+      });
+    });
+
+    item.getCurrentTime().then((value) => {
+      expect(value).to.eq(15.2);
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    })
+  });
+});
+
+describe('MPlayerMediaItem.getCurrentPercent', () => {
+  let item: MPlayerMediaItem;
+  let mgr: any;
+
+  beforeEach(() => {
+    mgr = sinon.createStubInstance(MPlayerManager);
+    item = new MPlayerMediaItemTest('bob.wav', mgr);
+  });
+
+  it('should resolve if it succeeds', (done) => {
+    mgr.doCriticalOperation.callsFake((
+      op: (exec: (...args: (string | number)[]) => void) => void,
+      processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+      timeout?: number) => {
+      return new Promise<void>((resolve, reject) => {
+
+        const opSpy = sinon.stub();
+        opSpy.returns(Promise.resolve());
+
+        op(opSpy);
+        expect(opSpy).to.have.been.calledOnce;
+        expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep_force');
+        expect(opSpy.getCall(0).args[1]).to.eq('get_property');
+        expect(opSpy.getCall(0).args[2]).to.eq('percent_pos');
+
+        processData('GLOBAL: ANS_percent_pos=33', resolve, reject);
+      });
+    });
+
+    item.getCurrentPercent().then((value) => {
+      expect(value).to.eq(33);
+      done();
+    }, (reason) => {
+      done(`Promise rejected: ${reason}`);
+    })
   });
 });

@@ -172,6 +172,13 @@ export class MPlayerMediaItem {
     return this.doSeek(offset, 0);
   }
 
+  /**
+   * stop
+   * 
+   * Stops the media
+   * 
+   * @returns a promise resolved when the media is stopped
+   */
   public stop(): Promise<void> {
     if (!this.mplayer) {
       return Promise.reject('Not in a valid state');
