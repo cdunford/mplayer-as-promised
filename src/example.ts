@@ -4,7 +4,7 @@ import { MPlayer, MPlayerMediaItem } from './lib/index';
 const mplayer = new MPlayer();
 
 //Open a file
-mplayer.openFile('V:/Music/Alice in Chains/(1992) Dirt/03 - Rain When I Die.mp3').then((item) => onItemOpen(item), (reason) => console.log(reason));
+mplayer.openFile('/path/to/file.wav').then((item) => onItemOpen(item), (reason) => console.log(reason));
 
 const onItemOpen = (item: MPlayerMediaItem) => {
   setTimeout(() => {
