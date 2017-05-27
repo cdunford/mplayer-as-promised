@@ -106,6 +106,11 @@ export class MPlayerManager {
         op((...args) => this.exec(...args)).then(() => {
           if (timeout) {
             timer = setTimeout(() => {
+              this.mplayerProc.stdout.removeListener('data', onData);
+              this.mplayerProc.stderr.removeListener('data', onData);
+              this.mplayerProc.removeListener('exit', onExit);
+              this.mplayerProc.removeListener('error', onError);
+
               reject('Timed out');
             }, timeout);
           }
