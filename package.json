@@ -10,7 +10,9 @@
     "prestart": "npm run build",
     "start": "node dist/example.js",
     "pretest": "npm run build",
-    "test": "mocha \"dist/test/**/*.js\""
+    "test": "mocha \"dist/test/**/*.js\"",
+    "predebug": "npm run build",
+    "debug": "node --inspect dist/example.js"
   },
   "repository": {
     "type": "git",

@@ -5,7 +5,19 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "node2",
+      "type": "node",
+      "protocol": "inspector",
+      "request": "attach",
+      "name": "Attach",
+      "port": 9229,
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/dist/**/*.js"
+      ]
+    },
+    {
+      "type": "node",
+      "protocol": "inspector",
       "request": "launch",
       "name": "Launch Program",
       "program": "${workspaceRoot}\\dist\\example.js",
@@ -15,7 +27,8 @@
       ]
     },
     {
-      "type": "node2",
+      "type": "node",
+      "protocol": "inspector",
       "request": "launch",
       "name": "Launch Tests",
       "program": "${workspaceRoot}\\node_modules\\mocha\\bin\\_mocha",
@@ -26,6 +39,6 @@
       "outFiles": [
         "${workspaceRoot}/dist/**/*.js"
       ]
-    }
+    },
   ]
 }

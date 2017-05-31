@@ -103,7 +103,7 @@ export class MPlayerMediaItem {
     return this.mplayer.doCriticalOperation<void>((exec) => {
       return exec('pause');
     }, (data, resolve, reject) => {
-      if (data.includes('CPLAYER:   =====  PAUSE  =====')) {
+      if (/CPLAYER:[\s\S]*=====  PAUSE  =====/.test(data)) {
         this.playing = false;
         resolve();
       }
