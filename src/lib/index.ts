@@ -231,7 +231,7 @@ export class MPlayerMediaItem {
     return this.mplayer.doCriticalOperation<void>((exec) => {
       return exec('pausing_keep', 'seek', value, type);
     }, (data, resolve, reject) => {
-      if (data.includes('CPLAYER: Position:')) {
+      if (/CPLAYER:[\s\S]*Position/.test(data)) {
         resolve();
       }
     }, DEFAULT_OP_TIMEOUT);
