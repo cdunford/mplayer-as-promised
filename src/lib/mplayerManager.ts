@@ -8,7 +8,6 @@ const MPLAYER_ARGS = [
   '-slave',
   '-fs',
   '-noborder',
-  '-nofontconfig',
 ];
 
 /**
