@@ -8,6 +8,9 @@ const MPLAYER_ARGS = [
   '-slave',
   '-fs',
   '-noborder',
+  '-softvol',
+  '-softvol-max',
+  '500',
 ];
 
 /**

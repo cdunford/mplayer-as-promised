@@ -173,6 +173,64 @@ export class MPlayerMediaItem {
   }
 
   /**
+   * getVolume
+   * 
+   * @description get the current volume level of the track
+   * @returns a promise resolved with the volume level, or rejected if
+   *          there is an error
+   */
+  public getVolume(): Promise<number> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<number>((exec) => {
+      return exec('pausing_keep_force', 'get_property', 'volume');
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_volume=')) {
+        resolve(parseFloat(data.match(/GLOBAL: ANS_volume=([0-9\.]+)/)[1]));
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+    * setVolume
+    * 
+    * @description sets the volume level of the track
+    * @param volume the volume level to set; a float between 0 and 100
+    * @returns a promise resolved when the volume is set successfully or
+    *          rejected if there is an error
+    */
+  public setVolume(volume: number): Promise<void> {
+    this.log(`Setting volume to ${volume}`);
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    if (volume < 0) {
+      volume = 0;
+    } else if (volume > 100) {
+      volume = 100;
+    }
+
+    return this.mplayer.doCriticalOperation<void>((exec) => {
+      return exec('pausing_keep_force', 'volume', volume, 1).then(() => {
+        this.mplayer.doOperation<void>((innerExec) => {
+          return innerExec('pausing_keep_force', 'get_property', 'volume');
+        }, (data, resolve, reject) => {
+          if (data.includes('GLOBAL: ANS_volume=')) {
+            resolve();
+          }
+        }, DEFAULT_OP_TIMEOUT);
+      });
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_volume=')) {
+        resolve();
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
    * stop
    * 
    * Stops the media

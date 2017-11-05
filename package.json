@@ -1,6 +1,6 @@
 {
   "name": "mplayer-as-promised",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Simple mplayer (http://www.mplayerhq.hu/) wrapper for use in node written in Typescript and presenting a promise-heavy API",
   "main": "dist/lib/index.js",
   "types": "dist/typings/lib/index.d.ts",
@@ -29,15 +29,15 @@
   "homepage": "https://github.com/cdunford/mplayer-as-promised#readme",
   "devDependencies": {
     "@types/chai": "^3.4.35",
-    "@types/mocha": "^2.2.40",
-    "@types/node": "^7.0.8",
+    "@types/mocha": "^2.2.44",
+    "@types/node": "^7.0.46",
     "@types/sinon": "^1.16.36",
-    "@types/sinon-chai": "^2.7.27",
+    "@types/sinon-chai": "^2.7.29",
     "chai": "^3.5.0",
     "fs-extra": "^3.0.1",
-    "mocha": "^3.2.0",
-    "sinon": "^2.1.0",
-    "sinon-chai": "^2.8.0",
-    "typescript": "^2.2.1"
+    "mocha": "^3.5.3",
+    "sinon": "^2.4.1",
+    "sinon-chai": "^2.14.0",
+    "typescript": "^2.6.1"
   }
 }
