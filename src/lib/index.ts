@@ -1,7 +1,9 @@
 import { MPlayerManager } from './mplayerManager'
+import { Metadata, parseMetadata } from './parseUtils'
 
 const DEFAULT_OP_TIMEOUT = 2000;
 const OPEN_OP_TIMEOUT = 8000;
+
 
 /**
  * MPlayerMediaItem
@@ -61,6 +63,26 @@ export class MPlayerMediaItem {
     }, (data, resolve, reject) => {
       if (data.includes('GLOBAL: ANS_time_pos=')) {
         resolve(parseFloat(data.match(/GLOBAL: ANS_time_pos=([0-9\.]+)/)[1]));
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
+   * getMetadata
+   *
+   * @returns a promise that resolves with the metadata
+   */
+  public getMetadata(): Promise<Metadata> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<Metadata>((exec) => {
+      return exec('pausing_keep_force', 'get_property', 'metadata');
+    }, (data, resolve, reject) => {
+      if (data.includes('ANS_metadata=')) {
+        const [, list] = data.match(/ANS_metadata=(.+)$/);
+        resolve(parseMetadata(list));
       }
     }, DEFAULT_OP_TIMEOUT);
   }

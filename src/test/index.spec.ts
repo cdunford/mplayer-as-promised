@@ -516,4 +516,51 @@ describe('MPlayerMediaItem.getCurrentPercent', () => {
       done(`Promise rejected: ${reason}`);
     })
   });
+
+  describe('MPlayerMediaItem.getMetadata', () => {
+    let item: MPlayerMediaItem;
+    let mgr: any;
+
+    beforeEach(() => {
+      mgr = sinon.createStubInstance(MPlayerManager);
+      item = new MPlayerMediaItemTest('bob.wav', mgr);
+    });
+
+    it('should resolve if it succeeds', (done) => {
+      mgr.doCriticalOperation.callsFake((
+        op: (exec: (...args: (string | number)[]) => void) => void,
+        processData: (data: string, resolve: (value?: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void,
+        timeout?: number) => {
+        return new Promise<void>((resolve, reject) => {
+
+          const opSpy = sinon.stub();
+          opSpy.returns(Promise.resolve());
+
+          op(opSpy);
+          expect(opSpy).to.have.been.calledOnce;
+          expect(opSpy.getCall(0).args[0]).to.eq('pausing_keep_force');
+          expect(opSpy.getCall(0).args[1]).to.eq('get_property');
+          expect(opSpy.getCall(0).args[2]).to.eq('metadata');
+
+          processData('GLOBAL: ANS_metadata=Title,Everything In Its Right Place ,Artist,Radiohead   ,Album,Kid A ,Year,2000   ,Comment,,Track,1,Genre,Other', resolve, reject);
+        });
+      });
+
+      item.getMetadata().then((value) => {
+        expect(value).to.eql({
+          title: 'Everything In Its Right Place',
+          artist: 'Radiohead',
+          album: 'Kid A',
+          year: 2000,
+          comment: '',
+          track: 1,
+          genre: 'Other'
+        });
+        done();
+      }, (reason) => {
+        done(`Promise rejected: ${reason}`);
+      })
+    });
+  });
+
 });
