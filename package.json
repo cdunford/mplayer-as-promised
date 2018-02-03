@@ -1,6 +1,6 @@
 {
   "name": "mplayer-as-promised",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Simple mplayer (http://www.mplayerhq.hu/) wrapper for use in node written in Typescript and presenting a promise-heavy API",
   "main": "dist/lib/index.js",
   "types": "dist/typings/lib/index.d.ts",
