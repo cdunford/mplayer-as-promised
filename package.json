@@ -5,6 +5,7 @@
   "main": "dist/lib/index.js",
   "types": "dist/typings/lib/index.d.ts",
   "scripts": {
+    "prepublish": "npm run build",
     "prebuild": "node prebuild.js",
     "build": "tsc",
     "prestart": "npm run build",
