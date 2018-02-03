@@ -88,6 +88,25 @@ export class MPlayerMediaItem {
   }
 
   /**
+   * getLength
+   *
+   * @returns a promise that resolves with the length of file in seconds
+   */
+  public getLength(): Promise<number> {
+    if (!this.mplayer) {
+      return Promise.reject('Not in a valid state');
+    }
+
+    return this.mplayer.doCriticalOperation<number>((exec) => {
+      return exec('pausing_keep_force', 'get_property', 'length');
+    }, (data, resolve, reject) => {
+      if (data.includes('GLOBAL: ANS_length=')) {
+        resolve(parseFloat(data.match(/GLOBAL: ANS_length=([0-9\.]+)/)[1]));
+      }
+    }, DEFAULT_OP_TIMEOUT);
+  }
+
+  /**
    * getCurrentPercent
    * 
    * @returns a promise that resolves with the current percentage complete of the item

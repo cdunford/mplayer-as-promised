@@ -7,6 +7,15 @@ const mplayer = new MPlayer();
 mplayer.openFile('/path/to/file.wav').then((item) => onItemOpen(item), (reason) => console.log(reason));
 
 const onItemOpen = (item: MPlayerMediaItem) => {
+  item.getMetadata()
+    .then(metadata => {
+      console.log('Metadata', metadata);
+      return item.getLength();
+    })
+    .then(length => {
+      console.log(`Length ${Math.floor(length / 60)}:${length % 60}`);
+    });
+
   setTimeout(() => {
     //Pause the item
     item.pause().then(() => onItemPause(item), (reason) => console.log(reason));
