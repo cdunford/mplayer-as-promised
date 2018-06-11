@@ -75,6 +75,29 @@ item.getCurrentPercent().then((percent) => {
 });
 ```
 
+Get file length in seconds
+```typescript
+item.getLength().then((length) => {
+  console.log(`Length is ${length} seconds`);
+});
+```
+
+Get track meta-data
+```typescript
+item.getMetadata().then((metadata) => {
+  console.log(metadata);
+  // {
+  //   title: 'Cool Song';
+  //   artist: 'Some Singer';
+  //   album: 'Greatest Hits';
+  //   year: 1984;
+  //   comment: 'hi there';
+  //   track: 1;
+  //   genre: 'Rock';    
+  // }
+});
+```
+
 Shutdown mplayer
 ```typescript
 mplayer.shutdown().then(() => {
